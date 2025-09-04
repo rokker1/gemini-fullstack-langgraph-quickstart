@@ -27,8 +27,14 @@ services:
       timeout: 1s
       retries: 5
       interval: 5s
+  milvus:
+    image: milvusdb/milvus:v2.4.7
+    container_name: milvus
+    command: ["milvus", "run", "standalone"]
+    ports:
+      - "19530:19530"
   langgraph-api:
-    image: gemini-fullstack-langgraph
+    image: bian-model-generator
     container_name: langgraph-api
     ports:
       - "8123:8000"
@@ -37,8 +43,13 @@ services:
         condition: service_healthy
       langgraph-postgres:
         condition: service_healthy
+      milvus:
+        condition: service_started
     environment:
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
+      EMBEDDINGS_URL: ${EMBEDDINGS_URL}
       REDIS_URI: redis://langgraph-redis:6379
       POSTGRES_URI: postgres://postgres:postgres@langgraph-postgres:5432/postgres?sslmode=disable
+      MILVUS_HOST: milvus
+      MILVUS_PORT: 19530
