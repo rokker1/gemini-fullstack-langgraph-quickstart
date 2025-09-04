@@ -2,6 +2,9 @@
 import pathlib
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+from .graph import graph
 
 # Define the FastAPI app
 app = FastAPI()
@@ -35,6 +38,20 @@ def create_frontend_router(build_dir="../frontend/dist"):
         return Route("/{path:path}", endpoint=dummy_frontend)
 
     return StaticFiles(directory=build_path, html=True)
+
+
+# ---------- API Endpoints ----------
+
+
+class GenerateRequest(BaseModel):
+    query: str
+
+
+@app.post("/generate")
+async def generate_model(req: GenerateRequest):
+    """Run the model generation graph for the given query."""
+    state = await graph.ainvoke({"messages": [], "request": req.query})
+    return {"artifacts": state.get("artifacts", {}), "validated_model": state.get("validated_model", {})}
 
 
 # Mount the frontend under /app to not conflict with the LangGraph API routes

@@ -1,51 +1,61 @@
-import { useStream } from "@langchain/langgraph-sdk/react";
-import type { Message } from "@langchain/langgraph-sdk";
-import { useCallback } from "react";
-import { WelcomeScreen } from "@/components/WelcomeScreen";
-import { ChatMessagesView } from "@/components/ChatMessagesView";
+import { useCallback, useState } from "react";
+import { InputForm } from "@/components/InputForm";
+
+interface Artifacts {
+  json?: string;
+  puml?: string;
+  sql?: string;
+}
+
+const API_URL = import.meta.env.DEV ? "http://localhost:2024" : "";
 
 export default function App() {
-  const thread = useStream<{ messages: Message[]; request: string }>({
-    apiUrl: import.meta.env.DEV ? "http://localhost:2024" : "http://localhost:8123",
-    assistantId: "agent",
-    messagesKey: "messages",
-  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [artifacts, setArtifacts] = useState<Artifacts | null>(null);
 
-  const handleSubmit = useCallback(
-    (submittedInputValue: string) => {
-      if (!submittedInputValue.trim()) return;
-      const newMessages: Message[] = [
-        ...(thread.messages || []),
-        { type: "human", content: submittedInputValue, id: Date.now().toString() },
-      ];
-      thread.submit({ messages: newMessages, request: submittedInputValue });
-    },
-    [thread]
-  );
+  const handleSubmit = useCallback(async (query: string) => {
+    setIsLoading(true);
+    setArtifacts(null);
+    try {
+      const res = await fetch(`${API_URL}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const data = await res.json();
+      setArtifacts(data.artifacts || data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const handleCancel = useCallback(() => {
-    thread.stop();
-    window.location.reload();
-  }, [thread]);
+    setArtifacts(null);
+  }, []);
 
   return (
     <div className="flex h-screen bg-neutral-800 text-neutral-100 font-sans antialiased">
       <main className="h-full w-full max-w-4xl mx-auto">
-        {thread.messages.length === 0 ? (
-          <WelcomeScreen
-            handleSubmit={handleSubmit}
-            isLoading={thread.isLoading}
-            onCancel={handleCancel}
-          />
-        ) : (
-          <ChatMessagesView
-            messages={thread.messages}
-            isLoading={thread.isLoading}
-            onSubmit={handleSubmit}
-            onCancel={handleCancel}
-          />
-        )}
+        <div className="p-4 md:p-6 space-y-4">
+          <InputForm onSubmit={handleSubmit} onCancel={handleCancel} isLoading={isLoading} />
+          {artifacts && (
+            <div className="space-y-4">
+              {artifacts.json && (
+                <pre className="whitespace-pre-wrap bg-neutral-900 p-4 rounded">{artifacts.json}</pre>
+              )}
+              {artifacts.sql && (
+                <pre className="whitespace-pre-wrap bg-neutral-900 p-4 rounded">{artifacts.sql}</pre>
+              )}
+              {artifacts.puml && (
+                <pre className="whitespace-pre-wrap bg-neutral-900 p-4 rounded">{artifacts.puml}</pre>
+              )}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
 }
+
